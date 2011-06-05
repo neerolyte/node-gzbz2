@@ -323,7 +323,7 @@ class Gunzip : public EventEmitter {
     HandleScope scope;
 
     enum encoding enc = ParseEncoding(args[1]);
-    ssize_t len = DecodeBytes(args[0], enc);
+    ssize_t len = DecodeBytes(args[0], BINARY);
 
     if (len < 0) {
       Local<Value> exception = Exception::TypeError(String::New("Bad argument"));

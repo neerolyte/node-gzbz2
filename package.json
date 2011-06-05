@@ -1,0 +1,23 @@
+{
+  "name": "node-compress",
+  "description": "streaming gzip/gunzip for node, required libz",
+	"homepage" : "http://waveto.github.com/node-compress",
+	"bugs" : { "web" : "http://github.com/waveto/node-compress/issues" },
+  "version": "0.0.2",
+  "author": "wave.to",
+  "contributors": [
+    { "name": "Woody Anderson", "email": "woody.anderson@gmail.com"}
+  ],
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/wave-to/node-compress.git"
+  },
+  "engine": [ "node >=0.4.0" ],
+  "main": "build/default/compress",
+  "directories.lib": "build/default/",
+  "scripts": {
+     "build" : "node-waf configure build",
+     "test" : "node-waf test",
+     "doc" : "node-waf doc"
+  }
+}
