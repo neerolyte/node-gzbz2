@@ -4,7 +4,7 @@ var fs = require("fs");
 
 // Read in our test file
 var testfile = process.argv[2] || "filetest.js";
-var enc = process.argv[3] || 'binary';
+var enc = process.argv[3];
 var data = fs.readFileSync(testfile, enc);
 sys.puts("Got : " + data.length);
 
@@ -18,25 +18,25 @@ gzip.init();
 
 // Pump data to be compressed
 var gzdata = gzip.deflate(data, enc);  // Do this as many times as required
-sys.puts("Compressed size : " + gzdata.length);
-fs.writeSync(fd, gzdata, null, "binary");
+sys.puts("Compressed chunk size : " + gzdata.length);
+fs.writeSync(fd, gzdata, 0, gzdata.length, null);
 
 // Get the last bit
 var gzlast = gzip.end();
-sys.puts("Last bit : " + gzlast.length);
-fs.writeSync(fd, gzlast, null, "binary");
+sys.puts("Compressed chunk size: " + gzlast.length);
+fs.writeSync(fd, gzlast, 0, gzlast.length, null);
 fs.closeSync(fd);
 sys.puts("File closed");
 
 // See if we can uncompress it ok
 var gunzip = new compress.Gunzip;
-gunzip.init();
-var testdata = fs.readFileSync(testfile + ".gz", "binary");
+gunzip.init({encoding: enc});
+var testdata = fs.readFileSync(testfile + ".gz");
 sys.puts("Test opened : " + testdata.length);
 var inflated = gunzip.inflate(testdata, enc);
 sys.puts("GZ.inflate.length: " + inflated.length);
-sys.puts("GZ.end.length: " + gunzip.end().length);
+gunzip.end(); // no return value
 
 if (data.length != inflated.length) {
-    sys.puts('error! input/output lengths do not match');
+    sys.puts('error! input/output string lengths do not match');
 }
