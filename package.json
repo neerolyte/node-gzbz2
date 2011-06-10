@@ -4,10 +4,8 @@
 	"homepage" : "http://github.com/woodya/node-gzbz2",
 	"bugs" : { "web" : "http://github.com/woodya/node-gzbz2/issues" },
   "version": "0.1.0",
-  "author": "wave.to",
-  "contributors": [
-    { "name": "Woody Anderson", "email": "woody.anderson@gmail.com"}
-  ],
+  "author": "name": "Woody Anderson", "email": "woody.anderson@gmail.com"}
+  "contributors": [ "wave.to" ],
   "repository": {
     "type": "git",
     "url": "http://github.com/woodya/node-gzbz2.git"
