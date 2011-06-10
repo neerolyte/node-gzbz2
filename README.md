@@ -1,7 +1,7 @@
 NAME
 ----
 
-gzbz2 - A Node.js interface to streaming gzip/bzip2 compression.
+gzbz2 - A Node.js interface to streaming gzip/bzip2 compression (built originally from wave.to/node-compress)
 
 INSTALL
 -------
