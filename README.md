@@ -1,19 +1,23 @@
-NAME
+INFO
 ----
 
 gzbz2 - A Node.js interface to streaming gzip/bzip2 compression (built originally from wave.to/node-compress)
 
+supports Buffe or string as both input and output, this is controlled by providing encodings to init (to produce Buffers), or by passing whichever you are using as input (with optional encoding for strings).
+Bzip and Gzip have the same interfaces, see Versions for specific options info. Also there are two simple js wrappers for producing usable read streams, gunzipstream.js and bunzipstream.js. 
+
 INSTALL
 -------
 
-To install, ensure that you have libz (and libbz2) installed, and run:
-these will be looked for in: /usr/lib, /usr/local/lib, /opt/local/lib (on osx)
+To install, ensure that you have libz (and libbz2) installed:
+* these will be looked for in: /usr/lib, /usr/local/lib, /opt/local/lib (on osx)
 
 npm install gzbz2
 
 or
 
 node-waf configure [--no-bzip] [--no-gzip]
+
 node-waf build
 
 This will put the gzbz2.node binary module in build/default.
@@ -61,6 +65,19 @@ Quick Gunzip example
     var inflated = gunzip.inflate(testdata, "binary");
     gunzip.end(); // returns nothing
 
+Quick Gunzip Stream example
+---------------------------
+    var fs = require('fs'),
+        gunzip = require('gzbz2/gunzipstream');
+    
+    var stream = gunzip.wrap(process.argv[2], {encoding: process.argv[3]});
+    stream.on('data', function(data) {
+        process.stdout.write(data);
+    });
+    stream.on('end', function() {
+        process.exit(0);
+    });
+
 Versions
 --------
 
@@ -84,24 +101,10 @@ Versions
     * deflate accepts a buffer or string[+encoding[default = 'utf8']], output will be a buffer or a string encoded according to init options
     * also added two submodules gunzipstream, and bunzipstream
         * use these to quickly/easily decompress a file while writing similar code to regular input streams
-
-    // gcat example
-    var fs = require('fs'),
-        gunzip = require('gzbz2/gunzipstream');
-    
-    var stream = gunzip.wrap(process.argv[2], {encoding: process.argv[3]});
-    stream.on('data', function(data) {
-        process.stdout.write(data);
-    });
-    stream.on('end', function() {
-        process.exit(0);
-    });
-
-
 * 0.0.*:
     * all string based, encodings in inflate/deflate methods, no init params
 
 Authors
 -------
-* wave.to, primary development of 0.0.* version and the general framework (node-compress)
+* wave.to: developer of node-compress aka 0.0.1 version and the general framework
 * woody.anderson@gmail.com, fixed bugs/memory leaks, added 0.1.* features: buffers, bzip2, npm as gzbz2, 
