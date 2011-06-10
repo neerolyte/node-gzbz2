@@ -1,8 +1,8 @@
 {
   "name": "gzbz2",
-  "description": "streaming gzip/gunzip bzip/bunzip (2) for node, requires libz/libbz2",
-	"homepage" : "http://github.com/woodya/node-compress",
-	"bugs" : { "web" : "http://github.com/woodya/node-compress/issues" },
+  "description": "streaming gzip/gunzip bzip/bunzip (2) for node, requires libz/libbz2 (built on wave.to/node-compress)",
+	"homepage" : "http://github.com/woodya/node-gzbz2",
+	"bugs" : { "web" : "http://github.com/woodya/node-gzbz2/issues" },
   "version": "0.1.0",
   "author": "wave.to",
   "contributors": [
@@ -10,7 +10,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "http://github.com/woodya/node-compress.git"
+    "url": "http://github.com/woodya/node-gzbz2.git"
   },
   "engine": [ "node >=0.4.0" ],
   "main": "build/default/gzbz2",
