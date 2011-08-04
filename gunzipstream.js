@@ -15,8 +15,14 @@ var GunzipStream = function(readStream, enc) {
     self.gz.init({encoding: enc});
 
     self.ondata = function(data) {
-        var inflated = self.gz.inflate(data);
-        self.emit('data', inflated);
+    	try {
+    	    var inflated = self.gz.inflate(data);
+    	    self.emit('data', inflated);
+    	} catch (err) {
+    	    self.gz.end();
+            self.emit('error', err);
+            self._cleanup();
+    	}
     };
     self.onclose = function() {
         self.gz.end();
