@@ -5,7 +5,7 @@ from os.path import lexists, exists
 
 srcdir = '.'
 blddir = 'build'
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 OSTYPE = platform.system()
 
 def set_options(opt):
