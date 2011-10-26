@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <node_buffer.h>
+#include <string>
 #include "buffer_compat.h"
 
 #ifdef  WITH_GZIP
@@ -22,14 +23,27 @@
 #define THROW_IF_NOT(condition, text) if (!(condition)) { \
       return ThrowException(Exception::Error (String::New(text))); \
     }
-#define THROW_IF_NOT_A(condition, bufname, x) if (!(condition)) { \
+#define THROW_IF_NOT_A(condition,...) if (!(condition)) { \
    char bufname[128] = {0}; \
-   sprintf x; \
+   sprintf(bufname, __VA_ARGS__); \
    return ThrowException(Exception::Error (String::New(bufname))); \
+   }
+
+#define THROWS_IF_NOT_A(condition,...) if (!(condition)) { \
+   char bufname[128] = {0}; \
+   sprintf(bufname, __VA_ARGS__); \
+   throw std::string(bufname); \
    }
 
 using namespace v8;
 using namespace node;
+
+class BufferWrapper {
+public:
+   BufferWrapper(char* b) : buffer(b) { }
+   ~BufferWrapper() { if( buffer ) { delete[] buffer; } }
+   char * buffer;
+};
 
 #ifdef  WITH_GZIP
 class Gzip : public EventEmitter {
@@ -85,7 +99,9 @@ class Gzip : public EventEmitter {
         strm.avail_out = CHUNK;
         strm.next_out = (Bytef*)*out + *out_len;
         ret = deflate(&strm, Z_NO_FLUSH);
-        assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+        // former assert
+        THROWS_IF_NOT_A (ret != Z_STREAM_ERROR, "GzipDeflate.deflate: %d", ret);  /* state not clobbered */
+
         *out_len += (CHUNK - strm.avail_out);
         i++;
       } while (strm.avail_out == 0);
@@ -115,11 +131,15 @@ class Gzip : public EventEmitter {
       strm.avail_out = CHUNK;
       strm.next_out = (Bytef*)*out + *out_len;
       ret = deflate(&strm, Z_FINISH);
-      assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+      // former assert
+      THROWS_IF_NOT_A (ret != Z_STREAM_ERROR, "GzipEnd.deflate: %d", ret);  /* state not clobbered */
+
       *out_len += (CHUNK - strm.avail_out);
       i++;
     } while (strm.avail_out == 0);
 
+    // ret had better be Z_STREAM_END
+    THROWS_IF_NOT_A (ret == Z_STREAM_END, "GzipEnd.deflate: %d != Z_STREAM_END", ret);
     deflateEnd(&strm);
     return ret;
   }
@@ -158,7 +178,7 @@ class Gzip : public EventEmitter {
       if ((lev->IsUndefined() || lev->IsNull()) == false) {
         level = lev->Int32Value();
         THROW_IF_NOT_A (Z_NO_COMPRESSION <= level && level <= Z_BEST_COMPRESSION,
-                        xmsg, (xmsg, "invalid compression level: %d", level));
+                        "invalid compression level: %d", level);
       }
     }
 
@@ -170,8 +190,8 @@ class Gzip : public EventEmitter {
     Gzip *gzip = ObjectWrap::Unwrap<Gzip>(args.This());
 
     HandleScope scope;
+    std::auto_ptr<BufferWrapper> bw;
 
-    bool  deleteBuf = false;
     char* buf;
     ssize_t len;
     // deflate a buffer or a string?
@@ -184,23 +204,23 @@ class Gzip : public EventEmitter {
       // string, default encoding is utf8
       enum encoding enc = args.Length() == 1 ? UTF8 : ParseEncoding(args[1], UTF8);
       len = DecodeBytes(args[0], enc);
-      THROW_IF_NOT_A (len >= 0, xmsg, (xmsg, "invalid DecodeBytes result: %zd", len));
+      THROW_IF_NOT_A (len >= 0, "invalid DecodeBytes result: %zd", len);
 
       buf = new char[len];
-      deleteBuf = true;
+      bw = std::auto_ptr<BufferWrapper>(new BufferWrapper( buf ));
       ssize_t written = DecodeWrite(buf, len, args[0], enc);
-      assert(written == len);
+      THROW_IF_NOT_A (written == len, "GzipDeflate.DecodeWrite: %zd != %zd", written, len);
     }
 
     char* out;
-    int out_size;
-    int r = gzip->GzipDeflate(buf, len, &out, &out_size);
-    if (deleteBuf) {
-       delete[] buf;
-       buf = NULL;
+    int r, out_size;
+    try {
+      r = gzip->GzipDeflate(buf, len, &out, &out_size);
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
     }
-    THROW_IF_NOT_A (r >= 0, xmsg, (xmsg, "gzip deflate: error(%d) %s", r, gzip->strm.msg));
-    THROW_IF_NOT_A (out_size >= 0, xmsg, (xmsg, "gzip deflate: negative output size: %d", out_size));
+    THROW_IF_NOT_A (r >= 0, "gzip deflate: error(%d) %s", r, gzip->strm.msg);
+    THROW_IF_NOT_A (out_size >= 0, "gzip deflate: negative output size: %d", out_size);
 
     if (gzip->use_buffers) {
       // output compressed data in a buffer
@@ -226,11 +246,14 @@ class Gzip : public EventEmitter {
     HandleScope scope;
 
     char* out;
-    int out_size;
-
-    int r = gzip->GzipEnd(&out, &out_size);
-    THROW_IF_NOT_A (r >=0, xmsg, (xmsg, "gzip end: error(%d) %s", r, gzip->strm.msg));
-    THROW_IF_NOT_A (out_size >= 0, xmsg, (xmsg, "gzip end: negative output size: %d", out_size));
+    int r, out_size;
+    try {
+      r = gzip->GzipEnd(&out, &out_size);
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
+    }
+    THROW_IF_NOT_A (r >= 0, "gzip end: error(%d) %s", r, gzip->strm.msg);
+    THROW_IF_NOT_A (out_size >= 0, "gzip end: negative output size: %d", out_size);
 
     if (gzip->use_buffers) {
       // output compressed data in a buffer
@@ -317,7 +340,9 @@ class Gunzip : public EventEmitter {
         strm.avail_out = CHUNK;
         strm.next_out = (Bytef*)*out + *out_len;
         ret = inflate(&strm, Z_NO_FLUSH);
-        assert(ret != Z_STREAM_ERROR);  /* state not clobbered */
+        // former assert
+        THROWS_IF_NOT_A (ret != Z_STREAM_ERROR, "GunzipInflate.inflate: %d", ret);  /* state not clobbered */
+
         switch (ret) {
         case Z_NEED_DICT:
           ret = Z_DATA_ERROR;     /* and fall through */
@@ -377,8 +402,8 @@ class Gunzip : public EventEmitter {
     Gunzip *gunzip = ObjectWrap::Unwrap<Gunzip>(args.This());
 
     HandleScope scope;
+    std::auto_ptr<BufferWrapper> bw;
 
-    bool  deleteBuf = false;
     char* buf;
     ssize_t len;
     // inflate a buffer or a binary string?
@@ -391,23 +416,23 @@ class Gunzip : public EventEmitter {
       // string, default encoding is binary. this is much worse than using a buffer
       enum encoding enc = args.Length() == 1 ? BINARY : ParseEncoding(args[1], BINARY);
       len = DecodeBytes(args[0], enc);
-      THROW_IF_NOT_A (len >= 0, xmsg, (xmsg, "invalid DecodeBytes result: %zd", len));
+      THROW_IF_NOT_A (len >= 0, "invalid DecodeBytes result: %zd", len);
 
       buf = new char[len];
-      deleteBuf = true;
+      bw = std::auto_ptr<BufferWrapper>(new BufferWrapper( buf ));
       ssize_t written = DecodeWrite(buf, len, args[0], enc);
-      assert(written == len);
+      THROW_IF_NOT_A (written == len, "GunzipInflate.DecodeWrite: %zd != %zd", written, len);
     }
 
     char* out;
-    int out_size;
-    int r = gunzip->GunzipInflate(buf, len, &out, &out_size);
-    if (deleteBuf) {
-       delete[] buf;
-       buf = NULL;
+    int r, out_size;
+    try {
+      r = gunzip->GunzipInflate(buf, len, &out, &out_size);
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
     }
-    THROW_IF_NOT_A (r >= 0, xmsg, (xmsg, "gunzip inflate: error(%d) %s", r, gunzip->strm.msg));
-    THROW_IF_NOT_A (out_size >= 0, xmsg, (xmsg, "gunzip inflate: negative output size: %d", out_size));
+    THROW_IF_NOT_A (r >= 0, "gunzip inflate: error(%d) %s", r, gunzip->strm.msg);
+    THROW_IF_NOT_A (out_size >= 0, "gunzip inflate: negative output size: %d", out_size);
 
     if (gunzip->use_buffers) {
       // output decompressed data in a buffer
@@ -431,7 +456,11 @@ class Gunzip : public EventEmitter {
     Gunzip *gunzip = ObjectWrap::Unwrap<Gunzip>(args.This());
 
     HandleScope scope;
-    gunzip->GunzipEnd();
+    try {
+      gunzip->GunzipEnd();
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
+    }
     return scope.Close(Undefined());
   }
 
@@ -502,11 +531,9 @@ class Bzip : public EventEmitter {
         strm.avail_out = CHUNK;
         strm.next_out = (char*)*out + *out_len;
         ret = BZ2_bzCompress(&strm, BZ_RUN);
-        // fprintf(stdout, "bzCompress: %d\n", ret);
-        assert(ret == BZ_RUN_OK);
-        if (ret != BZ_RUN_OK) {
-          return ret;
-        }
+        // former assert
+        THROWS_IF_NOT_A (ret == BZ_RUN_OK, "BzipDeflate.BZ2_bzCompress: %d != BZ_RUN_OK", ret);
+
         *out_len += (CHUNK - strm.avail_out);
         i++;
       } while (strm.avail_out == 0);
@@ -536,11 +563,10 @@ class Bzip : public EventEmitter {
       strm.avail_out = CHUNK;
       strm.next_out = (char*)*out + *out_len;
       ret = BZ2_bzCompress(&strm, BZ_FINISH);
-      // fprintf(stdout, "bzCompress-End: %d\n", ret);
-      assert(ret == BZ_FINISH_OK);
-      if (ret != BZ_FINISH_OK) {
-        return ret;
-      }
+      // former assert
+      THROWS_IF_NOT_A (ret == BZ_FINISH_OK || ret == BZ_STREAM_END,
+                       "BzipEnd.BZ2_bzCompress: %d != BZ_FINISH_OK || BZ_STREAM_END", ret);
+
       *out_len += (CHUNK - strm.avail_out);
       i++;
     } while (strm.avail_out == 0);
@@ -584,13 +610,11 @@ class Bzip : public EventEmitter {
       }
       if ((lev->IsUndefined() || lev->IsNull()) == false) {
         level = lev->Int32Value();
-        THROW_IF_NOT_A (1 <= level && level <= 9,
-                        xmsg, (xmsg, "invalid compression level: %d", level));
+        THROW_IF_NOT_A (1 <= level && level <= 9, "invalid compression level: %d", level);
       }
       if ((wf->IsUndefined() || wf->IsNull()) == false) {
         work = wf->Int32Value();
-        THROW_IF_NOT_A (0 <= work && work <= 250,
-                        xmsg, (xmsg, "invalid workfactor: %d", work));
+        THROW_IF_NOT_A (0 <= work && work <= 250, "invalid workfactor: %d", work);
       }
     }
 
@@ -602,8 +626,8 @@ class Bzip : public EventEmitter {
     Bzip *bzip = ObjectWrap::Unwrap<Bzip>(args.This());
 
     HandleScope scope;
+    std::auto_ptr<BufferWrapper> bw;
 
-    bool  deleteBuf = false;
     char* buf;
     ssize_t len;
     // deflate a buffer or a string?
@@ -616,23 +640,23 @@ class Bzip : public EventEmitter {
       // string, default encoding is utf8
       enum encoding enc = args.Length() == 1 ? UTF8 : ParseEncoding(args[1], UTF8);
       len = DecodeBytes(args[0], enc);
-      THROW_IF_NOT_A (len >= 0, xmsg, (xmsg, "invalid DecodeBytes result: %zd", len));
+      THROW_IF_NOT_A (len >= 0, "invalid DecodeBytes result: %zd", len);
 
       buf = new char[len];
-      deleteBuf = true;
+      bw = std::auto_ptr<BufferWrapper>(new BufferWrapper( buf ));
       ssize_t written = DecodeWrite(buf, len, args[0], enc);
-      assert(written == len);
+      THROW_IF_NOT_A (written == len, "BzipDeflate.DecodeWrite: %zd != %zd", written, len);
     }
 
     char* out;
-    int out_size;
-    int r = bzip->BzipDeflate(buf, len, &out, &out_size);
-    if (deleteBuf) {
-       delete[] buf;
-       buf = NULL;
+    int r, out_size;
+    try {
+      r = bzip->BzipDeflate(buf, len, &out, &out_size);
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
     }
-    THROW_IF_NOT_A (r >= 0, xmsg, (xmsg, "bzip deflate: error(%d)", r));
-    THROW_IF_NOT_A (out_size >= 0, xmsg, (xmsg, "bzip deflate: negative output size: %d", out_size));
+    THROW_IF_NOT_A (r >= 0, "bzip deflate: error(%d)", r);
+    THROW_IF_NOT_A (out_size >= 0, "bzip deflate: negative output size: %d", out_size);
 
     if (bzip->use_buffers) {
       // output compressed data in a buffer
@@ -658,11 +682,14 @@ class Bzip : public EventEmitter {
     HandleScope scope;
 
     char* out;
-    int out_size;
-
-    int r = bzip->BzipEnd(&out, &out_size);
-    THROW_IF_NOT_A (r >=0, xmsg, (xmsg, "bzip end: error(%d)", r));
-    THROW_IF_NOT_A (out_size >= 0, xmsg, (xmsg, "bzip end: negative output size: %d", out_size));
+    int r, out_size;
+    try {
+      r = bzip->BzipEnd(&out, &out_size);
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
+    }
+    THROW_IF_NOT_A (r >= 0, "bzip end: error(%d)", r);
+    THROW_IF_NOT_A (out_size >= 0, "bzip end: negative output size: %d", out_size);
 
     if (bzip->use_buffers) {
       // output compressed data in a buffer
@@ -813,8 +840,8 @@ class Bunzip : public EventEmitter {
     Bunzip *bunzip = ObjectWrap::Unwrap<Bunzip>(args.This());
 
     HandleScope scope;
+    std::auto_ptr<BufferWrapper> bw;
 
-    bool  deleteBuf = false;
     char* buf;
     ssize_t len;
     // inflate a buffer or a binary string?
@@ -827,23 +854,23 @@ class Bunzip : public EventEmitter {
       // string, default encoding is binary. this is much worse than using a buffer
       enum encoding enc = args.Length() == 1 ? BINARY : ParseEncoding(args[1], BINARY);
       len = DecodeBytes(args[0], enc);
-      THROW_IF_NOT_A (len >= 0, xmsg, (xmsg, "invalid DecodeBytes result: %zd", len));
+      THROW_IF_NOT_A (len >= 0, "invalid DecodeBytes result: %zd", len);
 
       buf = new char[len];
-      deleteBuf = true;
+      bw = std::auto_ptr<BufferWrapper>(new BufferWrapper( buf ));
       ssize_t written = DecodeWrite(buf, len, args[0], enc);
-      assert(written == len);
+      THROW_IF_NOT_A(written == len, "BunzipInflate.DecodeWrite: %zd != %zd", written, len);
     }
 
     char* out;
-    int out_size;
-    int r = bunzip->BunzipInflate(buf, len, &out, &out_size);
-    if (deleteBuf) {
-       delete[] buf;
-       buf = NULL;
+    int r, out_size;
+    try {
+      r = bunzip->BunzipInflate(buf, len, &out, &out_size);
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
     }
-    THROW_IF_NOT_A (r >= 0, xmsg, (xmsg, "bunzip inflate: error(%d)", r));
-    THROW_IF_NOT_A (out_size >= 0, xmsg, (xmsg, "bunzip inflate: negative output size: %d", out_size));
+    THROW_IF_NOT_A (r >= 0, "bunzip inflate: error(%d)", r);
+    THROW_IF_NOT_A (out_size >= 0, "bunzip inflate: negative output size: %d", out_size);
 
     if (bunzip->use_buffers) {
       // output decompressed data in a buffer
@@ -867,7 +894,11 @@ class Bunzip : public EventEmitter {
     Bunzip *bunzip = ObjectWrap::Unwrap<Bunzip>(args.This());
 
     HandleScope scope;
-    bunzip->BunzipEnd();
+    try {
+      bunzip->BunzipEnd();
+    } catch( const std::string & msg ) {
+      return ThrowException(Exception::Error (String::New(msg.c_str())));
+    }
     return scope.Close(Undefined());
   }
 

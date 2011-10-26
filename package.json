@@ -1,21 +1,30 @@
 {
   "name": "gzbz2",
   "description": "streaming gzip/gunzip bzip/bunzip (2) for node, requires libz/libbz2 (built on wave.to/node-compress)",
-	"homepage" : "http://github.com/woodya/node-gzbz2",
-	"bugs" : { "web" : "http://github.com/woodya/node-gzbz2/issues" },
-  "version": "0.1.0",
-  "author": { "name": "Woody Anderson", "email": "woody.anderson@gmail.com"},
-  "contributors": [ "wave.to" ],
+  "homepage": "http://github.com/woodya/node-gzbz2",
+  "bugs": {
+    "url": "http://github.com/woodya/node-gzbz2/issues"
+  },
+  "version": "0.1.2",
+  "author": "Woody Anderson <woody.anderson@gmail.com>",
+  "contributors": [
+    "wave.to"
+  ],
   "repository": {
     "type": "git",
-    "url": "http://github.com/woodya/node-gzbz2.git"
+    "url": "git://github.com/woodya/node-gzbz2.git"
   },
-  "engine": [ "node >=0.4.0" ],
   "main": "build/default/gzbz2",
   "directories.lib": "build/default/",
   "scripts": {
-     "build" : "node-waf configure build",
-     "test" : "node-waf test",
-     "doc" : "node-waf doc"
+    "build": "node-waf configure build",
+    "test": "node-waf test",
+    "doc": "node-waf doc",
+    "preinstall": "node-waf clean || true; node-waf configure build"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "engines": {
+    "node": ">=0.4.0"
   }
 }

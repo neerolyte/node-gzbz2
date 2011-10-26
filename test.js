@@ -3,7 +3,7 @@ var sys = require("sys");
 var fs = require("fs");
 
 // Read in our test file
-var testfile = process.argv[2] || "filetest.js";
+var testfile = process.argv[2] || "test.js";
 var enc = process.argv[3];
 var data = fs.readFileSync(testfile, enc);
 sys.puts("Got : " + data.length);
@@ -14,7 +14,7 @@ sys.puts("File opened");
 
 // Create gzip stream
 var gzip = new gzbz2.Gzip;
-gzip.init();
+gzip.init({level:3});
 
 // Pump data to be gzbz2
 var gzdata = gzip.deflate(data, enc);  // Do this as many times as required

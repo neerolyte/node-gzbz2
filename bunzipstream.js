@@ -15,7 +15,11 @@ var BunzipStream = function(readStream, enc) {
     self.bz.init({encoding: enc});
 
     self.ondata = function(data) {
-        var inflated = self.bz.inflate(data);
+        try {
+            var inflated = self.bz.inflate(data);
+        } catch (err) {
+            return self.onerror(err);
+        }
         self.emit('data', inflated);
     };
     self.onclose = function() {
