@@ -3,7 +3,7 @@ INFO
 
 gzbz2 - A Node.js interface to streaming gzip/bzip2 compression (built originally from wave.to/node-compress)
 
-supports Buffe or string as both input and output, this is controlled by providing encodings to init (to produce Buffers), or by passing whichever you are using as input (with optional encoding for strings).
+supports Buffer or string as both input and output, this is controlled by providing encodings to init (to produce Buffers), or by passing whatever you are using as input (with optional encoding for strings).
 Bzip and Gzip have the same interfaces, see Versions for specific options info. Also there are two simple js wrappers for producing usable read streams, gunzipstream.js and bunzipstream.js. 
 
 INSTALL
@@ -62,7 +62,7 @@ Quick Gunzip example
     gunzip.init({encoding: "utf8"});
 
     var gzdata = fs.readFileSync("somefile.gz", "binary");
-    var inflated = gunzip.inflate(testdata, "binary");
+    var inflated = gunzip.inflate(gzdata, "binary");
     gunzip.end(); // returns nothing
 
 Quick Gunzip Stream example
